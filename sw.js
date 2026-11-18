@@ -1,6 +1,6 @@
 // Service Worker：快取 App 檔案以便離線使用。
 // 每次修改 App 檔案後，請把 VERSION 加一，手機才會抓到新版。
-const VERSION = 'v1.0.0';
+const VERSION = 'v1.0.1';
 const CACHE = `ba-pvp-${VERSION}`;
 const ASSETS = [
   './',
@@ -9,6 +9,8 @@ const ASSETS = [
   'db.js',
   'students.js',
   'util.js',
+  'debug.js',
+  'debug.html',
   'style.css',
   'vendor/dexie.mjs',
   'manifest.webmanifest',
@@ -53,12 +55,15 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // 其他檔案：快取優先；頁面導覽一律回傳 index.html
+  // 其他檔案：快取優先；離線時找不到的頁面回傳 index.html
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
-    if (req.mode === 'navigate') return (await cache.match('index.html')) || fetch(req);
     const hit = await cache.match(req, { ignoreSearch: true });
     if (hit) return hit;
-    return fetch(req);
+    try { return await fetch(req); }
+    catch (e) {
+      if (req.mode === 'navigate') return (await cache.match('index.html')) || Response.error();
+      throw e;
+    }
   })());
 });

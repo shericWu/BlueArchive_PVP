@@ -3,7 +3,10 @@ import * as DB from './db.js';
 import { StudentIndex } from './students.js';
 import { today, compactDate, cleanSlots, duplicatesIn, STRIKER_SLOTS, SLOT_COUNT } from './util.js';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
+
+// 觸控裝置（手機）：不自動移動焦點、不自動全選，避免 Firefox Android 的輸入法狀態錯亂。
+const TOUCH = matchMedia('(pointer: coarse)').matches;
 
 const state = {
   idx: new StudentIndex([]),
@@ -171,7 +174,7 @@ function teamInput(initial = [], { disabled = false, onChange = null } = {}) {
     hideList();
     onChange?.(values.slice());
     const next = inputs.slice(i + 1).find(inp => !inp.disabled && values[inputs.indexOf(inp)] === null);
-    if (next) next.focus(); else inputs[i].blur();
+    if (next && !TOUCH) next.focus(); else inputs[i].blur();
   }
 
   function hideList() { list.hidden = true; list.replaceChildren(); candidates = []; }
@@ -209,7 +212,7 @@ function teamInput(initial = [], { disabled = false, onChange = null } = {}) {
     const input = h('input', {
       type: 'text', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', enterkeyhint: 'next',
       'aria-label': `第 ${i + 1} 格（${i < STRIKER_SLOTS ? 'STRIKER' : 'SPECIAL'}）`,
-      onfocus: () => { hideList(); active = i; beforeEdit = values[i]; input.select(); if (input.value && values[i] === null) showList(i); },
+      onfocus: () => { hideList(); active = i; beforeEdit = values[i]; if (!TOUCH) input.select(); if (input.value && values[i] === null) showList(i); },
       oninput: () => {
         values[i] = null;
         slotEls[i].classList.remove('filled', 'invalid');
@@ -372,7 +375,7 @@ async function viewNew(params) {
     } else {
       defStatus.append(h('span', { class: 'badge' }, `現行 第 ${current.version} 版`),
         h('span', { class: 'grow' }),
-        h('button', { class: 'btn small', type: 'button', onclick: () => { changing = true; paintDefense(); defense.focus(); } }, '對手換陣了'));
+        h('button', { class: 'btn small', type: 'button', onclick: () => { changing = true; paintDefense(); } }, '對手換陣了'));
       defense.setDisabled(true);
     }
   }
@@ -460,10 +463,9 @@ async function viewNew(params) {
   const oppId = Number(params.get('opp'));
   if (oppId) {
     const o = await DB.db.opponents.get(oppId);
-    if (o) { await setOpponent(o); attack.focus(); return; }
+    if (o) { await setOpponent(o); return; }
   }
   paintDefense();
-  nameInput.focus();
 }
 
 // ======================= 畫面：搜尋 =======================
@@ -484,7 +486,6 @@ async function viewSearch(params) {
   input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(run, 200); });
   mount($view(), h('div', { class: 'card' }, input), results);
   await run();
-  input.focus();
 }
 
 // ======================= 畫面：對手詳情 =======================
@@ -736,9 +737,22 @@ async function viewSettings() {
         h('dt', {}, '來源'), h('dd', {}, info?.source || '—'))),
 
     h('div', { class: 'section-title' }, '儲存空間'),
-    h('div', { class: 'card small' },
-      persisted === true ? '瀏覽器已允許永久儲存，空間不足時不會自動清除資料。'
-        : h('div', { class: 'warn-box' }, '瀏覽器沒有允許永久儲存，空間不足時可能清除資料。請定期匯出備份。')),
+    h('div', { class: 'card small stack' },
+      persisted === true ? h('div', {}, '瀏覽器已允許永久儲存，空間不足時不會自動清除資料。')
+        : [h('div', { class: 'warn-box' }, '瀏覽器沒有允許永久儲存，空間不足時可能清除資料。請定期匯出備份。'),
+          navigator.storage?.persist ? h('button', { class: 'btn block', onclick: async () => {
+            const granted = await navigator.storage.persist().catch(() => false);
+            toast(granted ? '已取得永久儲存' : '瀏覽器沒有允許永久儲存');
+            render();
+          } }, '要求永久儲存') : null]),
+
+    h('div', { class: 'section-title' }, '疑難排解'),
+    h('div', { class: 'card stack' },
+      h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: debugEnabled(), onchange: e => {
+        try { localStorage.setItem(DEBUG_KEY, e.target.checked ? '1' : '0'); } catch {}
+        if (e.target.checked) startDebugPanel(); else location.reload();
+      } }), h('span', {}, '除錯模式', h('div', { class: 'small muted' }, '在畫面下方記錄觸控、焦點與鍵盤事件，可複製給開發者'))),
+      h('a', { class: 'btn block', href: 'debug.html' }, '開啟打字測試頁')),
 
     h('div', { class: 'section-title' }, '關於'),
     h('div', { class: 'card small muted' },
@@ -805,9 +819,15 @@ function registerServiceWorker() {
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (updateRequested) location.reload(); });
 }
 
+const DEBUG_KEY = 'ba-pvp-debug';
+function debugEnabled() { try { return localStorage.getItem(DEBUG_KEY) === '1'; } catch { return false; } }
+function startDebugPanel() {
+  import('./debug.js').then(m => m.startDebug({ appVersion: APP_VERSION })).catch(e => console.warn('除錯模式載入失敗', e));
+}
+
 async function init() {
+  if (debugEnabled()) startDebugPanel();
   DB.openDb();
-  if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   state.settings = await DB.getSettings();
   await loadBundledStudents();
   await reloadStudents();

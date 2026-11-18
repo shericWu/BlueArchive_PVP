@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>打字測試</title>
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 16px; padding-bottom: 45vh; }
+    label { display: block; margin: 14px 0 4px; font-size: 14px; color: #555; }
+    input, textarea { font-size: 16px; padding: 8px; width: 100%; box-sizing: border-box; }
+    p { font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h2>打字測試</h2>
+  <p>這一頁沒有使用 App 的程式碼。請在下面兩個欄位各點一下並打幾個字（中文、英文都試），再按畫面下方紀錄的「複製」，把內容貼給 Claude。</p>
+  <label for="a">測試欄位 A（一般文字欄位）</label>
+  <input id="a" type="text">
+  <label for="b">測試欄位 B（多行文字）</label>
+  <textarea id="b" rows="2"></textarea>
+  <p><a href="./">回到 App</a></p>
+  <script type="module">
+    import { startDebug } from './debug.js';
+    startDebug({ appVersion: 'debug.html', bottom: 8 });
+  </script>
+</body>
+</html>
