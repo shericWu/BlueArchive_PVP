@@ -1,0 +1,31 @@
+name: 更新學生名單
+
+on:
+  schedule:
+    - cron: '17 20 * * 0'   # 每週一 04:17（台灣時間）
+  workflow_dispatch:         # 也可在 Actions 頁面手動執行
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 產生 data/students.json
+        run: node scripts/build-students.mjs
+      - name: 有變動才 commit
+        run: |
+          if git diff --quiet -- data/students.json; then
+            echo "沒有變動"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data/students.json
+            git commit -m "更新學生名單"
+            git push
+          fi
